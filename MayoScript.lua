@@ -28,9 +28,12 @@ notification.notify("hallo","welcome, i hope you like my script :)")
 --#region updated values
 local player_ped_id
 local delta_time
+local player_pos
 util.create_tick_handler(function ()
     player_ped_id = PLAYER.PLAYER_PED_ID()
     delta_time = MISC.GET_FRAME_TIME()
+    player_pos = ENTITY.GET_ENTITY_COORDS(player_ped_id)
+    return true
 end)
 --#endregion
 
@@ -53,6 +56,7 @@ local UI_list = menu.list(menu.my_root(), "UI")
 
 local misc_list = menu.list(menu.my_root(), "misc")
     local executor_list = menu.list(misc_list, "executor")
+    local terrain_grid_list = menu.list(misc_list, "terrain grid")
 
 local mayo_list = menu.list(menu.my_root(), "mayo")
     local mayo_settings_list = menu.list(mayo_list, "settings")
@@ -160,7 +164,6 @@ menu.toggle(deadline_list, "deadline", {"deadline"}, "renders a line behind you 
     deadline_run = value
     if value then
         util.create_tick_handler(function ()
-            local player_pos = ENTITY.GET_ENTITY_COORDS(player_ped_id)
             if deadline_write_index < deadline_line_length then
                 deadline_write_index = deadline_write_index + 1
             else
@@ -288,6 +291,8 @@ menu.toggle(shitty_gps_list, "shitty gps", {"shittygps"}, "a very bad gps that s
     local p_distToNxJunction = memory.alloc(4) --float
     local p_screenX = memory.alloc(4) --float
     local p_screenY = memory.alloc(4) --float
+
+    local turn_dir = 0
     shitty_gps_run = value
 
     if value then
@@ -315,7 +320,7 @@ menu.toggle(shitty_gps_list, "shitty gps", {"shittygps"}, "a very bad gps that s
         local direction = memory.read_byte(p_direction)
         local distToNxJunction = memory.read_float(p_distToNxJunction)
 
-        local turn_dir = 0
+
 
         GRAPHICS.GET_SCREEN_COORD_FROM_WORLD_COORD(
             player_pos.x,
@@ -327,24 +332,28 @@ menu.toggle(shitty_gps_list, "shitty gps", {"shittygps"}, "a very bad gps that s
         local screen_x = memory.read_float(p_screenX)
         local screen_y = memory.read_float(p_screenY)
 
-        if direction == 1 then
+       if direction == 1 then
             turn_dir = math_funcs.lerp(turn_dir, 180, 5 * delta_time)
             directx.draw_text(screen_x, screen_y, "make a U-turn when possible", ALIGN_CENTRE, 1, colour.to_stand(shitty_gps_colour_a))
         elseif direction == 3 then
-            math_funcs.lerp(turn_dir, -90, 1 * delta_time)
+            turn_dir =  math_funcs.lerp(turn_dir, -90, 5 * delta_time)
             directx.draw_text(screen_x,screen_y,"turn left in " .. math.floor(distToNxJunction) .. " meters",ALIGN_CENTRE,1,colour.to_stand(shitty_gps_colour_a))
         elseif direction == 6 then
-            math_funcs.lerp(turn_dir, -145, 1 * delta_time)
+            turn_dir =  math_funcs.lerp(turn_dir, -145, 5 * delta_time)
             directx.draw_text(screen_x,screen_y,"turn sharp left in " .. math.floor(distToNxJunction) .. " meters",ALIGN_CENTRE,1,colour.to_stand(shitty_gps_colour_a))
         elseif direction == 4 then
-            math_funcs.lerp(turn_dir, 90, 1 * delta_time)
+            turn_dir =  math_funcs.lerp(turn_dir, 90, 5 * delta_time)
             directx.draw_text(screen_x,screen_y,"turn right in " .. math.floor(distToNxJunction) .. " meters",ALIGN_CENTRE,1,colour.to_stand(shitty_gps_colour_a))
         elseif direction == 7 then
-            math_funcs.lerp(turn_dir, 145, 1 * delta_time)
+            turn_dir =  math_funcs.lerp(turn_dir, 145, 5 * delta_time)
             directx.draw_text(screen_x,screen_y,"turn sharp right in " .. math.floor(distToNxJunction) .. " meters",ALIGN_CENTRE,1,colour.to_stand(shitty_gps_colour_a))
         elseif direction == 8 then
+            turn_dir =  math_funcs.lerp(turn_dir, 0, 5 * delta_time)
             directx.draw_text(screen_x, screen_y, "calculating new route    ", ALIGN_CENTRE, 1, colour.to_stand(shitty_gps_colour_a))
+        else
+            turn_dir =  math_funcs.lerp(turn_dir, 0, 5 * delta_time)
         end
+        util.draw_debug_text(tostring(turn_dir))
         local player_pos = ENTITY.GET_ENTITY_COORDS(player_ped_id)
         local direction = ENTITY.GET_ENTITY_FORWARD_VECTOR(player_ped_id)
         local angle = vectors.vector2.get_angle(direction, {x = 0, y = 1})
@@ -518,6 +527,7 @@ end)
 
 --#region hotkey display
 local hotkey_display_run
+local hotkey_display_colour = colour.to_stand(colour.magenta())
 menu.toggle(hotkey_display_list, "hotkey display", {"displayhotkeys", "hotkeydisplay"}, "displays all your current hotkeys on screen", function (value)
 
     local dir = filesystem.stand_dir().."Hotkeys.txt"
@@ -545,7 +555,7 @@ menu.toggle(hotkey_display_list, "hotkey display", {"displayhotkeys", "hotkeydis
             local largest_line = 0
             local current_y_index = 0
             for i, hotkey in ipairs(hotkeys) do
-                directx.draw_text(0.36 + tab, 0.78 + current_y_index * 0.02, hotkey, ALIGN_TOP_LEFT, 0.6, colour.magenta())
+                directx.draw_text(0.36 + tab, 0.78 + current_y_index * 0.02, hotkey, ALIGN_TOP_LEFT, 0.6, hotkey_display_colour, false)
                 local line_width = directx.get_text_size(hotkey, 0.6)
                 if line_width > largest_line then
                     largest_line = line_width
@@ -563,6 +573,9 @@ menu.toggle(hotkey_display_list, "hotkey display", {"displayhotkeys", "hotkeydis
         end)
     end
 end)
+menu.rainbow(menu.colour(hotkey_display_list, "colour", {"hotkeydisplaycolour", "displayhotkeycolour"}, "changes the colour of the text", colour.to_stand(colour.magenta()), true, function (value)
+    hotkey_display_colour = value
+end))
 --#endregion
 
 --[[       MISC        ]]
@@ -582,8 +595,53 @@ end)
     menu.action(executor_list, "Run code", {"executeLua"}, "run the code entered above", function() executor_run() end)
 --#endregion
 
---[[       MAYO       ]]
+--#region terrain grid
+local terrain_grid_run
+local terrain_grid_scale = 10
+local terrain_grid_intensity = 10
+local terrain_grid_cell_size = 1
+menu.toggle(terrain_grid_list, "terrain grid", {"drawterraingrid", "terraingrid"}, "render a grid on the ground", function (value)
+    GRAPHICS.TERRAINGRID_ACTIVATE(value)
+    GRAPHICS.TERRAINGRID_SET_COLOURS(255, 0, 255, 255, 255, 0, 255, 255, 255, 0, 255, 255)
+    terrain_grid_run = value
+    if terrain_grid_run then
+        util.create_tick_handler(function ()
+            GRAPHICS.TERRAINGRID_SET_PARAMS(
+                math.floor(player_pos.x * terrain_grid_cell_size) / terrain_grid_cell_size,
+                math.floor(player_pos.y * terrain_grid_cell_size) / terrain_grid_cell_size,
+                player_pos.z,
+                1, 0, 0,
+                20 * terrain_grid_scale,
+                20 * terrain_grid_scale, 
+                20 * terrain_grid_scale, 
+                terrain_grid_scale * 20 * 2 * terrain_grid_cell_size, 
+                terrain_grid_intensity, 
+                player_pos.z, 0)
+            return true
+        end)
+    end
+end)
+menu.slider(terrain_grid_list, "scale", {"terraingridscale"}, "sets the scale of the grid", 1, 1000, 10, 1, function (value)
+    terrain_grid_scale = value  
+end)
+menu.slider(terrain_grid_list, "cell size", {"terraingridsize"}, "sets the cell size of the grid", 1, 100, 1, 1, function (value)
+    terrain_grid_cell_size = value * 0.05
+end)
+menu.slider(terrain_grid_list, "glow intesity", {"terraingridglow"}, "sets the glow intesity of the grid (might look weird on low grapics settings)", 1, 1000, 10, 1, function (value)
+    terrain_grid_intensity = value
+end)
+local terrain_grid_colour = colour.magenta()
+menu.rainbow(menu.colour(terrain_grid_list, "colour", {"terraingridcolour"}, "", 1, 0, 1, 1, true, function (new_colour)
+    terrain_grid_colour = colour.to_rage(new_colour)
+    GRAPHICS.TERRAINGRID_SET_COLOURS(
+        terrain_grid_colour.r, terrain_grid_colour.g, terrain_grid_colour.b, terrain_grid_colour.a,
+        terrain_grid_colour.r, terrain_grid_colour.g, terrain_grid_colour.b, terrain_grid_colour.a,
+        terrain_grid_colour.r, terrain_grid_colour.g, terrain_grid_colour.b, terrain_grid_colour.a)
+end))
 
+--#endregion
+
+--[[       MAYO       ]]
 --#region settings
 
 --#region notifcations
@@ -610,6 +668,9 @@ end)
 menu.slider(notification_settings_list, "notification spacing", {"notificationspacing"}, "spacing between notifications", 0, 100, 15, 1, function (value)
     notification.notif_spacing = value * 0.001
 end)
+menu.toggle(notification_settings_list, "use default notifications", {"notificationusedefault"}, "toggles between the custom and default notfications", function (value)
+    notification.use_toast = value
+end)
 local num = 1
 menu.action(notification_settings_list, "test notif", {"testnotif"}, "", function ()
    notification.notify("Title","Lorem ipsum dolor"..num)
@@ -619,5 +680,10 @@ end)
 
 --#endregion
 
+--clean up my mess here
+util.on_stop(function ()
+    GRAPHICS.TERRAINGRID_ACTIVATE(false)
+    util.toast("bye bye\nhope you enjoyed mayo")
+end)
 --keep script running
 util.keep_running()

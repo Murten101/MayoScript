@@ -1,15 +1,5 @@
 util.require_no_lag('natives-1640181023')
 
---[[local function get_CpedFactory_pointer()
-    local worldPtr = memory.rip(memory.scan('48 8B 05 ? ? ? ? 45 ? ? ? ? 48 8B 48 08 48 85 C9 74 07') + 3)
-    if worldPtr == 0 then
-        util.toast("Pattern scan failed. stoping script now")
-        util.yield(500)
-        util.stop_script()
-    end
-    return worldPtr
-end]]
-
 b_properties = {}
 b_properties.new = function ()
     local self = {}
@@ -301,6 +291,16 @@ b_vectors.new = function ()
     self.vector2.get_angle = function(vector_a, vector_b)
         return math.acos(self.vector2.dot(vector_a, vector_b) / self.vector2.magnitude(vector_a) / self.vector2.magnitude(vector_b))
     end
+    self.vector3 = {}
+    self.vector3.new = function (x, y, z)
+        return {x = x, y = y, z = z}
+    end
+    self.vector3.add = function(a, b)
+        return self.vector3.new(a.x + b.x, a.y + b.y, a.z + b.z)
+    end
+    self.vector3.multiply = function (vec, num)
+        return {x = vec.x * num, y = vec.y * num, z = vec.z * num}
+    end
     return self
 end
 
@@ -368,6 +368,7 @@ b_notifications.new = function ()
     self.notif_flash_colour = {r = 0.5, g = 0.0, b = 0.5, a = 1}
     self.max_notifs = 10
     self.notif_banner_height = 0.002
+    self.use_toast = false
     string.split = function (input, sep)
         local t={}
         for str in string.gmatch(input, "([^"..sep.."]+)") do
@@ -463,6 +464,10 @@ b_notifications.new = function ()
     end
 
     self.notify = function (title,text, duration, colour)
+        if self.use_toast then
+            util.toast(title.."\n"..text)
+            return
+        end
         title = cut_string_to_length(title, self.notif_width, self.notif_title_size)
         text = cut_string_to_length(text, self.notif_width, self.notif_text_size)
         local x, text_heigth = directx.get_text_size(text, self.notif_text_size)
@@ -503,6 +508,24 @@ end
 b_input = {}
 b_input.new = function ()
     local self = {}
+    self.throttle_up = function ()
+        return PAD.IS_CONTROL_PRESSED(2, 87)
+    end
+    self.throttle_down = function ()
+        return PAD.IS_CONTROL_PRESSED(2, 88)
+    end
+    self.yaw_left = function ()
+        return PAD.IS_CONTROL_PRESSED(2, 89)
+    end
+    self.yaw_right = function ()
+        return PAD.IS_CONTROL_PRESSED(2, 90)
+    end
+    self.roll_left = function ()
+        return PAD.IS_CONTROL_PRESSED(2, 108)
+    end
+    self.roll_right = function ()
+        return PAD.IS_CONTROL_PRESSED(2, 109)
+    end
     self.jump = function ()
         return PAD.IS_CONTROL_JUST_PRESSED(2, 22)
     end
