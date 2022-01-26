@@ -10,7 +10,7 @@ b_properties.new = function ()
         return PLAYER.PLAYER_PED_ID()
     end
 
-    self.aspect_ratio_16_9 = 1.777777777777778
+    self.aspect_ratio_16_9 = 16/9
     return self
 end
 
@@ -48,7 +48,40 @@ b_common_funcs.new = function ()
         end
         return t
     end
-    
+    self.split = function (input, sep)
+        local t={}
+        for str in string.gmatch(input, "([^"..sep.."]+)") do
+                table.insert(t, str)
+        end
+        return t
+    end
+    local minimum = memory.alloc()
+    local maximum = memory.alloc()
+    self.get_pos_above_entity = function (entity)
+        MISC.GET_MODEL_DIMENSIONS(ENTITY.GET_ENTITY_MODEL(entity), minimum, maximum)
+        local maximum_vec = memory.read_vector3(maximum)
+        return ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(entity, 0, 0, maximum_vec.z)
+    end
+    self.copy_File = function(old_path, new_path)
+        local old_file = io.open(old_path, "rb")
+        local new_file = io.open(new_path, "wb")
+        local old_file_sz, new_file_sz = 0, 0
+        if not old_file or not new_file then
+          return false
+        end
+        while true do
+          local block = old_file:read(2^13)
+          if not block then 
+            old_file_sz = old_file:seek( "end" )
+            break
+          end
+          new_file:write(block)
+        end
+        old_file:close()
+        new_file_sz = new_file:seek( "end" )
+        new_file:close()
+        return new_file_sz == old_file_sz
+      end
     return self
 end
 
@@ -57,6 +90,42 @@ b_math_funcs.new = function ()
     local self = {}
     self.lerp = function(a, b, t)
         return a + (b - a) * t
+    end
+    local EPSILON = 0.0000001
+    self.RayIntersectsTriangle = function(rayOrigin, rayDirection, vertex1, vertex2, vertex3)
+        local edge1, edge2, h, s, q, a, f, u, v
+        edge1 = {x = vertex2.x - vertex1.x, y = vertex2.y - vertex1.y, z = vertex2.z - vertex1.z}
+        edge2 = {x = vertex3.x - vertex1.x, y = vertex3.y - vertex1.y, z = vertex3.z - vertex1.z}
+        h = {
+            x =    edge2.y * rayDirection.z - edge2.z * rayDirection.y,
+            y =    edge2.z * rayDirection.x - edge2.x * rayDirection.z,
+            z =    edge2.x * rayDirection.y - edge2.y * rayDirection.x
+        }
+        a = h.x * edge1.x + h.y * edge1.y + h.z * edge1.z
+
+        if a > -EPSILON and a < EPSILON then return false end
+
+        f = 1.0/a
+        s = {x = rayOrigin.x - vertex1.x, y = rayOrigin.y - vertex1.y, z = rayOrigin.z - vertex1.z}
+        u = f * (h.x * s.x + h.y * s.y + h.z * s.z)
+        if u < 0.0 or u > 1.0 then return false end
+        q = {
+            x =    edge1.y * s.z - edge1.z * s.y,
+            y =    edge1.z * s.x - edge1.x * s.z,
+            z =    edge1.x * s.y - edge1.y * s.x
+        }
+        v = f * (rayDirection.x * q.x + rayDirection.y * q.y + rayDirection.z * q.z)
+        if v < 0.0 or u + v > 1.0 then return false end
+        t = f *  (edge2.x * q.x + edge2.y * q.y + edge2.z * q.z)
+        if t > EPSILON then
+            return true, {
+                x = rayOrigin.x + rayDirection.x * t,
+                y = rayOrigin.y + rayDirection.y * t,
+                z = rayOrigin.z + rayDirection.z * t
+            }
+        else
+            return false
+        end
     end
     return self
 end
@@ -163,6 +232,105 @@ b_drawing_funcs.new = function ()
             colour_b.a
         )
     end
+    self.draw_arrow_down = function(pos, angle, size, colour_a, colour_b)
+        local angle_cos = math.cos(angle)
+        local angle_sin = math.sin(angle)
+    
+        local width = 0.5 * size
+        local length = 1 * size
+        local height = 0.25 * size
+        
+        GRAPHICS.DRAW_POLY(
+            pos.x + (angle_cos * 0 - angle_sin * 0),
+            pos.y + (angle_sin * 0 + angle_cos * 0),
+            pos.z + 0,
+            pos.x + (angle_cos * 0 - angle_sin * height),
+            pos.y + (angle_sin * 0 + angle_cos * height),
+            pos.z + length + height,
+            pos.x + (angle_cos * width - angle_sin * 0),
+            pos.y + (angle_sin * width + angle_cos * 0),
+            pos.z + length,
+            colour_b.r,
+            colour_b.g,
+            colour_b.b,
+            colour_b.a
+        )
+        GRAPHICS.DRAW_POLY(
+            pos.x + (angle_cos * 0 - angle_sin * -height),
+            pos.y + (angle_sin * 0 + angle_cos * -height),
+            pos.z + length + height,
+            pos.x + (angle_cos * 0 - angle_sin * 0),
+            pos.y + (angle_sin * 0 + angle_cos * 0),
+            pos.z + 0,
+            pos.x + (angle_cos * width - angle_sin * 0),
+            pos.y + (angle_sin * width + angle_cos * 0),
+            pos.z + length,
+            colour_b.r,
+            colour_b.g,
+            colour_b.b,
+            colour_b.a
+        )
+        GRAPHICS.DRAW_POLY(
+            pos.x + (angle_cos * 0 - angle_sin * 0),
+            pos.y + (angle_sin * 0 + angle_cos * 0),
+            pos.z + 0,
+            pos.x + (angle_cos * 0 - angle_sin * -height),
+            pos.y + (angle_sin * 0 + angle_cos * -height),
+            pos.z + length + height,
+            pos.x + (angle_cos * -width - angle_sin * 0),
+            pos.y + (angle_sin * -width + angle_cos * 0),
+            pos.z + length,
+            colour_a.r,
+            colour_a.g,
+            colour_a.b,
+            colour_a.a
+        )
+        GRAPHICS.DRAW_POLY(
+            pos.x + (angle_cos * 0 - angle_sin * height),
+            pos.y + (angle_sin * 0 + angle_cos * height),
+            pos.z + length + height,
+            pos.x + (angle_cos * 0 - angle_sin * 0),
+            pos.y + (angle_sin * 0 + angle_cos * 0),
+            pos.z + 0,
+            pos.x + (angle_cos * -width - angle_sin * 0),
+            pos.y + (angle_sin * -width + angle_cos * 0),
+            pos.z + length,
+            colour_a.r,
+            colour_a.g,
+            colour_a.b,
+            colour_a.a
+        )
+        GRAPHICS.DRAW_POLY(
+            pos.x + (angle_cos * 0 - angle_sin * height),
+            pos.y + (angle_sin * 0 + angle_cos * height),
+            pos.z + length + height,
+            pos.x + (angle_cos * 0 - angle_sin * -height),
+            pos.y + (angle_sin * 0 + angle_cos * -height),
+            pos.z + length + height,
+            pos.x + (angle_cos * width - angle_sin * 0),
+            pos.y + (angle_sin * width + angle_cos * 0),
+            pos.z + length,
+            colour_b.r,
+            colour_b.g,
+            colour_b.b,
+            colour_b.a
+        )
+        GRAPHICS.DRAW_POLY(
+            pos.x + (angle_cos * 0 - angle_sin * -height),
+            pos.y + (angle_sin * 0 + angle_cos * -height),
+            pos.z + length + height,
+            pos.x + (angle_cos * 0 - angle_sin * height),
+            pos.y + (angle_sin * 0 + angle_cos * height),
+            pos.z + length + height,
+            pos.x + (angle_cos * -width - angle_sin * 0),
+            pos.y + (angle_sin * -width + angle_cos * 0),
+            pos.z + length,
+            colour_a.r,
+            colour_a.g,
+            colour_a.b,
+            colour_a.a
+        )
+    end
     self.draw_quad = function (pos1_org, pos2_org, size, colour_a, colour_b, dict, texture)
         GRAPHICS.REQUEST_STREAMED_TEXTURE_DICT(dict, false)
         if GRAPHICS.HAS_STREAMED_TEXTURE_DICT_LOADED(dict) then
@@ -200,6 +368,171 @@ b_drawing_funcs.new = function ()
         else
             util.toast("not loaded")
         end 
+    end
+    self.arc_line = {}
+    self.arc_line.new = function ()
+        arc = {}
+        arc.instability = 0.75
+        arc.draw = function (pos1, pos2)
+            local dif = {x = pos2.x - pos1.x, y = pos2.y - pos1.y, z = pos2.z - pos1.z}
+            local distance_to_cover = math.sqrt(
+                (dif.x * dif.x) +
+                (dif.y * dif.y) +
+                (dif.z * dif.z)
+            )
+            local nor_dir = {x = dif.x / distance_to_cover, y = dif.y / distance_to_cover,z = dif.z / distance_to_cover}
+
+            for _ = 0, 3, 1 do
+                local distance_covered = math.random() * 1.5
+                local previous_pos = pos1
+                repeat
+                    local current_pos = {
+                        x = pos1.x + nor_dir.x * distance_covered + (math.random() - 0.5) * arc.instability,
+                        y = pos1.y + nor_dir.y * distance_covered + (math.random() - 0.5) * arc.instability,
+                        z = pos1.z + nor_dir.z * distance_covered + (math.random() - 0.5) * arc.instability
+                    }
+                    GRAPHICS.DRAW_LINE(
+                        previous_pos.x, previous_pos.y, previous_pos.z,
+                        current_pos.x , current_pos.y , current_pos.z,
+                        0, 255, 255, 255
+                    )
+                    previous_pos = current_pos
+                    distance_covered = distance_covered + math.random() * 1.5
+                until distance_covered > distance_to_cover
+                GRAPHICS.DRAW_LINE(
+                    previous_pos.x, previous_pos.y, previous_pos.z,
+                    pos2.x , pos2.y , pos2.z,
+                    0, 255, 255, 255
+                )
+            end
+
+            arc.instability = arc.instability + (0.15 - arc.instability) *  MISC.GET_FRAME_TIME() * 7
+        end
+        return arc
+    end
+    local minimum = memory.alloc()
+    local maximum = memory.alloc()
+    local upVector_pointer = memory.alloc()
+    local rightVector_pointer = memory.alloc()
+    local forwardVector_pointer = memory.alloc()
+    local position_pointer = memory.alloc()
+    self.draw_bounding_box = function (entity, colour)
+        ENTITY.GET_ENTITY_MATRIX(entity, rightVector_pointer, forwardVector_pointer, upVector_pointer, position_pointer);
+        local forward_vector = memory.read_vector3(forwardVector_pointer)
+        local right_vector = memory.read_vector3(rightVector_pointer)
+        local up_vector = memory.read_vector3(upVector_pointer)
+
+        MISC.GET_MODEL_DIMENSIONS(ENTITY.GET_ENTITY_MODEL(entity), minimum, maximum)
+        local minimum_vec = memory.read_vector3(minimum)
+        local maximum_vec = memory.read_vector3(maximum)
+        local dimensions = {x = maximum_vec.y - minimum_vec.y, y = maximum_vec.x - minimum_vec.x, z = maximum_vec.z - minimum_vec.z}
+
+        local top_right =           ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(entity,       maximum_vec.x, maximum_vec.y, maximum_vec.z)
+        local top_right_back =      {x = forward_vector.x * -dimensions.y + top_right.x,        y = forward_vector.y * -dimensions.y + top_right.y,         z = forward_vector.z * -dimensions.y + top_right.z}
+        local bottom_right_back =   {x = up_vector.x * -dimensions.z + top_right_back.x,        y = up_vector.y * -dimensions.z + top_right_back.y,         z = up_vector.z * -dimensions.z + top_right_back.z}
+        local bottom_left_back =    {x = -right_vector.x * dimensions.x + bottom_right_back.x,  y = -right_vector.y * dimensions.x + bottom_right_back.y,   z = -right_vector.z * dimensions.x + bottom_right_back.z}
+        local top_left =            {x = -right_vector.x * dimensions.x + top_right.x,          y = -right_vector.y * dimensions.x + top_right.y,           z = -right_vector.z * dimensions.x + top_right.z}
+        local bottom_right =        {x = -up_vector.x * dimensions.z + top_right.x,             y = -up_vector.y * dimensions.z + top_right.y,              z = -up_vector.z * dimensions.z + top_right.z}
+        local bottom_left =         {x = forward_vector.x * dimensions.y + bottom_left_back.x,  y = forward_vector.y * dimensions.y + bottom_left_back.y,   z = forward_vector.z * dimensions.y + bottom_left_back.z}
+        local top_left_back =       {x = up_vector.x * dimensions.z + bottom_left_back.x,       y = up_vector.y * dimensions.z + bottom_left_back.y,        z = up_vector.z * dimensions.z + bottom_left_back.z}
+
+        GRAPHICS.DRAW_LINE(
+            top_right.x, top_right.y, top_right.z,
+            top_right_back.x, top_right_back.y, top_right_back.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            top_right.x, top_right.y, top_right.z,
+            top_left.x, top_left.y, top_left.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            top_right.x, top_right.y, top_right.z,
+            bottom_right.x, bottom_right.y, bottom_right.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            bottom_left_back.x, bottom_left_back.y, bottom_left_back.z,
+            bottom_right_back.x, bottom_right_back.y, bottom_right_back.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            bottom_left_back.x, bottom_left_back.y, bottom_left_back.z,
+            bottom_left.x, bottom_left.y, bottom_left.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            bottom_left_back.x, bottom_left_back.y, bottom_left_back.z,
+            top_left_back.x, top_left_back.y, top_left_back.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            top_left_back.x, top_left_back.y, top_left_back.z,
+            top_right_back.x, top_right_back.y, top_right_back.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            top_left_back.x, top_left_back.y, top_left_back.z,
+            top_left.x, top_left.y, top_left.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            bottom_right_back.x, bottom_right_back.y, bottom_right_back.z,
+            top_right_back.x, top_right_back.y, top_right_back.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            bottom_left.x, bottom_left.y, bottom_left.z,
+            top_left.x, top_left.y, top_left.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            bottom_left.x, bottom_left.y, bottom_left.z,
+            bottom_right.x, bottom_right.y, bottom_right.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+        GRAPHICS.DRAW_LINE(
+            bottom_right_back.x, bottom_right_back.y, bottom_right_back.z,
+            bottom_right.x, bottom_right.y, bottom_right.z,
+           colour.r, colour.g, colour.b, colour.a
+        )
+    end
+    local numbers = {}
+    local x_coord_ptr = memory.alloc(4)
+    local y_coord_ptr = memory.alloc(4)
+    local draw_numbers = function ()
+        util.create_tick_handler(function() 
+            local delta_time = MISC.GET_FRAME_TIME()
+            for i, number in ipairs(numbers) do
+                if GRAPHICS.GET_SCREEN_COORD_FROM_WORLD_COORD(number.pos.x, number.pos.y, number.pos.z, x_coord_ptr, y_coord_ptr) then
+                    local x = memory.read_float(x_coord_ptr)
+                    local y = memory.read_float(y_coord_ptr)
+                    local alpha = math.min(1, number.time)
+                    directx.draw_text(x, y, number.num, ALIGN_CENTRE, number.size, {r = number.colour.r * alpha,g = number.colour.g * alpha,b = number.colour.b * alpha,a = number.colour.a * alpha}, false)
+                    number.pos.z = number.pos.z + 0.2 * delta_time
+                end
+                number.time = number.time - delta_time
+                if number.time < 0 then
+                    table.remove(numbers, i)
+                end
+            end
+            return #numbers ~= 0
+        end)
+    end
+    local random_offset = 1
+    self.draw_damage_number = function(entity, num, colour, size)
+        pos = ENTITY.GET_ENTITY_COORDS(entity)
+        random_offset_pos = {x = pos.x + (math.random() * random_offset - random_offset * 0.5),y = pos.y + (math.random() * random_offset - random_offset * 0.5),z = pos.z}
+        numbers[#numbers+1] = {
+            pos = random_offset_pos,
+            colour = colour,
+            num = num,
+            size = size,
+            time = 3
+        }
+        if #numbers == 1 then
+            draw_numbers()
+        end
     end
     --all credit to Nowiry#2663 for this one
     self.draw_button_tip = function (buttons, duration, colour)
@@ -298,6 +631,9 @@ b_vectors.new = function ()
     self.vector3.add = function(a, b)
         return self.vector3.new(a.x + b.x, a.y + b.y, a.z + b.z)
     end
+    self.vector3.sub = function(a, b)
+        return self.vector3.new(a.x - b.x, a.y - b.y, a.z - b.z)
+    end
     self.vector3.multiply = function (vec, num)
         return {x = vec.x * num, y = vec.y * num, z = vec.z * num}
     end
@@ -315,24 +651,18 @@ b_colour.new = function ()
             a = a
         }
     end
-    self.white = function ()
-        return self.new(255, 255, 255, 255)
-    end
-    self.black = function ()
-        return self.new(0, 0, 0, 255)
-    end
-    self.magenta = function ()
-        return self.new(255, 0, 255, 255)
-    end
-    self.red = function ()
-        return self.new(255, 0, 0, 255)
-    end
-    self.green = function ()
-        return self.new(0, 255, 0, 255)
-    end
-    self.blue = function ()
-        return self.new(0, 0, 255, 255)
-    end
+    self.white =    {r = 255,g = 255,b = 255,a = 255}
+
+    self.black =    {r = 0,g = 0,b = 0,a = 255}
+
+    self.magenta =  {r = 255,g = 0,b = 255,a = 255}
+
+    self.red =      {r = 255,g = 0,b = 0,a = 255}
+
+    self.green =    {r = 0,g = 255,b = 0,a = 255}
+
+    self.blue =     {r = 0,g = 0,b = 255,a = 255}
+
     self.to_rage = function (colour)
         return {
             r = math.floor(colour.r * 255),
@@ -369,7 +699,7 @@ b_notifications.new = function ()
     self.max_notifs = 10
     self.notif_banner_height = 0.002
     self.use_toast = false
-    string.split = function (input, sep)
+    local split = function (input, sep)
         local t={}
         for str in string.gmatch(input, "([^"..sep.."]+)") do
                 table.insert(t, str)
@@ -381,13 +711,27 @@ b_notifications.new = function ()
         return a + (b - a) * t
     end
     local cut_string_to_length = function(input, length, fontSize)
-        input = string.split(input, " ")
+        input = split(input, " ")
         local output = {}
         local line = ""
         for i, word in ipairs(input) do
             if directx.get_text_size(line..word, fontSize) >= length then
-                output[#output+1] =  line
-                line = ""
+                if directx.get_text_size(word, fontSize) > length then
+                    while directx.get_text_size(word , fontSize) > length do
+                        local word_lenght = string.len(word)
+                        for x = 1, word_lenght, 1 do
+                            if directx.get_text_size(line..string.sub(word ,1, x), fontSize) > length then
+                                output[#output+1] = line..string.sub(word, 1, x - 1)
+                                line = ""
+                                word = string.sub(word, x, word_lenght)
+                                break
+                            end
+                        end
+                    end
+                else
+                    output[#output+1] =  line
+                    line = ""
+                end
             end
             if i == #input then
                 output[#output+1] = line..word
@@ -531,6 +875,9 @@ b_input.new = function ()
     end
     self.cancel = function ()
         return PAD.IS_CONTROL_JUST_PRESSED(2, 194)
+    end
+    self.f5 = function ()
+        return PAD.IS_CONTROL_JUST_PRESSED(2,318)
     end
     return self
 end
